@@ -15,7 +15,7 @@ import java.io.File
 @OptIn(UnstableApi::class)
 object VideoTranscoder {
     fun start(
-        context: Context, source: File, destination: File, targetHeight: Int,
+        context: Context, source: File, destination: File, targetHeight: Int, targetBitrate: Int,
         onProgress: (Int) -> Unit, onCompleted: (ExportResult) -> Unit,
         onError: (Throwable) -> Unit
     ): Transformer {
@@ -32,7 +32,13 @@ object VideoTranscoder {
             .setEffects(Effects(emptyList(), listOf(effect))).build()
         val holder = ProgressHolder()
         val handler = Handler(Looper.getMainLooper())
+        val encoderFactory = DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(
+                VideoEncoderSettings.Builder().setBitrate(targetBitrate).build()
+            )
+            .build()
         val transformer = Transformer.Builder(context)
+            .setEncoderFactory(encoderFactory)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
             .addListener(object : Transformer.Listener {
