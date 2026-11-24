@@ -1,10 +1,12 @@
 package com.scvc.app
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -54,7 +56,7 @@ class MainActivity : ComponentActivity() {
             Task.UNPACK -> try {
                 val name = contentResolver.openInputStream(uri)?.use { ScxCodec.originalName(it) }
                     ?: error("SCX ဖိုင်ဖတ်မရပါ")
-                createRestored.launch(name)
+                createRestored.launch(createDocumentIntent(name))
             } catch (e: Exception) {
                 setBusy(false); setStatus("SCX ဖိုင်မမှန်ပါ: ${e.message}")
             }
@@ -64,9 +66,14 @@ class MainActivity : ComponentActivity() {
         val input = selectedInput
         if (uri == null || input == null) cancelled() else runScx(input, uri, Task.PACK)
     }
-    private val createRestored = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+    private val createRestored = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val input = selectedInput
-        if (uri == null || input == null) cancelled() else runScx(input, uri, Task.UNPACK)
+        val uri = if (result.resultCode == RESULT_OK) result.data?.data else null
+        if (uri == null || input == null) {
+            cancelled()
+        } else {
+            runScx(input, uri, Task.UNPACK)
+        }
     }
     private val createVideo = registerForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { uri ->
         val input = selectedInput
@@ -91,11 +98,11 @@ class MainActivity : ComponentActivity() {
         val intro = label("မူရင်းဖိုင်ကို မဖျက်ဘဲ အလုပ်လုပ်သည်။ Exact Mode က bytes အတိအကျ ပြန်ရစေပြီး Data-saving Mode က MP4 အသစ်အဖြစ် ပြန် encode လုပ်သည်။", 14f)
         profile = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
-                listOf("720p · မျှတ", "480p · ပိုသေးနိုင်", "1080p · Resolution မြင့်"))
+                listOf("720p · 1.4 Mbps", "480p · 700 kbps · ဖိုင်ပိုသေး", "1080p · 2.5 Mbps"))
         }
-        packButton = Button(this).apply { text = "① Exact Mode · SCX သိမ်းရန်"; setOnClickListener { choose(Task.PACK) } }
-        unpackButton = Button(this).apply { text = "② SCX မှ မူရင်းဖိုင် ပြန်ထုတ်ရန်"; setOnClickListener { choose(Task.UNPACK) } }
-        transcodeButton = Button(this).apply { text = "③ Data-saving · MP4 ပြန်ချုံ့ရန်"; setOnClickListener { choose(Task.TRANSCODE) } }
+        packButton = Button(this).apply { text = "① SCX Archive · မူရင်းအတိုင်းသိမ်းရန်"; setOnClickListener { choose(Task.PACK) } }
+        unpackButton = Button(this).apply { text = "② SCX မှ မူရင်းဗီဒီယို ပြန်ထုတ်ရန်"; setOnClickListener { choose(Task.UNPACK) } }
+        transcodeButton = Button(this).apply { text = "③ Video Compress · MP4 အသစ်အဖြစ်ချုံ့ရန်"; setOnClickListener { choose(Task.TRANSCODE) } }
         cancelButton = Button(this).apply {
             text = "လုပ်ဆောင်မှု ရပ်ရန်"; isEnabled = false
             setOnClickListener {
@@ -103,7 +110,7 @@ class MainActivity : ComponentActivity() {
                 setBusy(false); setStatus("ရပ်တန့်လိုက်သည်။ မပြည့်စုံသော output ကို ဖျက်ပါ။")
             }
         }
-        val note = label("သတိပြုရန် — SCX သည် မူရင်း bytes ကို ထိန်းသိမ်းသည်။ MP4/H.264/H.265 ကို SCX ထဲထည့်ရုံဖြင့် အရွယ်အစား များစွာလျော့မည်မဟုတ်ပါ။ Data-saving သည် 480p/720p/1080p သို့ H.264/AAC ဖြင့် ပြန် encode လုပ်သည်။ အရွယ်အစားလျော့မည်ဟု အာမမခံပါ။", 13f)
+        val note = label("SCX Archive သည် မူရင်းဗီဒီယိုကို အတိအကျသိမ်းဆည်းရန်ဖြစ်ပြီး ဖိုင်ဆိုဒ်လျှော့ရန် မဟုတ်ပါ။ ဖိုင်ဆိုဒ်လျှော့ရန် Video Compress ကိုသုံးပါ။ 480p/720p/1080p နှင့် သတ်မှတ် Bitrate ဖြင့် MP4 အသစ်ထုတ်ပေးသည်။", 13f)
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; visibility = ProgressBar.GONE }
         status = label("အဆင်သင့်။ လုပ်ဆောင်ချက်တစ်ခုကို ရွေးပါ။", 14f)
         val historyTitle = label("လုပ်ဆောင်မှုမှတ်တမ်း", 18f)
@@ -162,7 +169,7 @@ class MainActivity : ComponentActivity() {
 
     private fun runTranscode(input: Uri, output: Uri) {
         setBusy(true)
-        val height = when (profile.selectedItemPosition) { 1 -> 480; 2 -> 1080; else -> 720 }
+        val (height, bitrate) = when (profile.selectedItemPosition) { 1 -> 480 to 700_000; 2 -> 1080 to 2_500_000; else -> 720 to 1_400_000 }
         setStatus("ဗီဒီယိုကို ယာယီဖိုင်သို့ ကူးနေသည်…")
         executor.execute {
             val sourceFile = File(cacheDir, "scvc_input_${System.currentTimeMillis()}.media")
@@ -175,7 +182,7 @@ class MainActivity : ComponentActivity() {
                     setStatus("Media3 Encoder ဖြင့် ${height}p ပြန် encode လုပ်နေသည်…")
                     try {
                         activeTransformer = VideoTranscoder.start(
-                            this, sourceFile, outputFile, height,
+                            this, sourceFile, outputFile, height, bitrate,
                             onProgress = { p -> progress.progress = p; status.text = "ပြန် encode လုပ်နေသည်… $p%" },
                             onCompleted = {
                                 activeTransformer = null
@@ -226,6 +233,17 @@ class MainActivity : ComponentActivity() {
         historyText.text = if (rows.isEmpty()) "မှတ်တမ်း မရှိသေးပါ။" else rows.joinToString("\n\n") {
             val date = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it.time))
             "$date · ${it.mode} · ${if (it.success) "အောင်မြင်" else "မအောင်မြင်"}\n${it.inputName}\n${formatBytes(it.inputBytes)} → ${formatBytes(it.outputBytes)}"
+        }
+    }
+
+    private fun createDocumentIntent(fileName: String): Intent {
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+            ?: if (extension == "mkv") "video/x-matroska" else "application/octet-stream"
+        return Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mime
+            putExtra(Intent.EXTRA_TITLE, fileName)
         }
     }
 
