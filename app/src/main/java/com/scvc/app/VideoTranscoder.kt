@@ -27,7 +27,7 @@ object VideoTranscoder {
                 ?.toIntOrNull() ?: error("Video track not found")
         } finally { retriever.release() }
         val outputHeight = minOf(originalHeight, targetHeight).coerceAtLeast(2)
-        val effect = Presentation.createForHeight(outputHeight).copyWithUnsetSideRoundedTo(2)
+        val effect = Presentation.createForHeight(outputHeight)
         val item = EditedMediaItem.Builder(MediaItem.fromUri(source.absolutePath))
             .setEffects(Effects(emptyList(), listOf(effect))).build()
         val holder = ProgressHolder()
