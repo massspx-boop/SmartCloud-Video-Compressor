@@ -1,9 +1,10 @@
-# Security and Data Handling
+# Security and privacy notes
 
-- SCVC v1 operates on user-selected documents through Android's Storage Access Framework.
-- The app does not request broad shared-storage permissions and does not upload files.
-- Chunk lengths are validated before allocation; supported chunks are capped.
-- SHA-256 is checked before reporting a successful extraction.
-- A failed extraction may leave a partial destination document. Delete that incomplete output and retry.
-- Never extract automatically to a privileged or executable location.
-- A valid SHA-256 footer detects corruption but is not a publisher signature.
+- Video processing is local; the app does not upload media to a server.
+- Input and output are selected through Android Storage Access Framework.
+- The app never overwrites the selected source document.
+- SCX chunk sizes and filename lengths are validated before allocation.
+- Extracted filenames are reduced to safe basenames; path separators and control characters are removed.
+- SHA-256 verifies restored bytes against the SCX footer but does not authenticate a publisher.
+- Failed operations can leave a partial destination document. Delete incomplete outputs before retrying.
+- Transcoding uses temporary app-private cache files. Cancelled or failed exports should be cleaned by the app; the user should still check storage if the OS terminates the app unexpectedly.
